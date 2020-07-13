@@ -1,0 +1,12 @@
+./dither ./examples/input/tesla.png ./examples/output/tesla_grey.png
+./dither ./examples/input/cat.png ./examples/output/cat_grey.png
+./dither ./examples/input/cat.png ./examples/output/cat_3bit.png -m 3bit
+./dither ./examples/input/braun.png ./examples/output/braun_grey.png
+./dither ./examples/input/boomer.png ./examples/output/boomer_grey.png
+./dither ./examples/input/boomer.png ./examples/output/boomer_3bit.png -m 3bit
+./dither ./examples/input/gra.png ./examples/output/gra_grey.png
+./dither ./examples/input/roof.png ./examples/output/roof_grey.png
+./dither ./examples/input/roof.png ./examples/output/roof_3bit.png -m 3bit
+./dither ./examples/input/3bit.png ./examples/output/3bit_grey.png
+./dither ./examples/input/3bit.png ./examples/output/3bit_3bit.png -m 3bit
+
