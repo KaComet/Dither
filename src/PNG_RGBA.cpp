@@ -1,6 +1,7 @@
 #include "PNG_RGBA.h"
+#include <cmath>
 
-PNG_RGBA::PNG_RGBA(const std::string &filePath) {
+PNG_RGBA::PNG_RGBA(const std::string &filePath, bool canConvert) {
     // Open stream at file path.
     std::FILE *fp = fopen(filePath.c_str(), "rb");
 
@@ -37,9 +38,37 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
         throw std::runtime_error("Exception: jumped");
     }
 
-    // Load the image's properties.
+    /* Load the image's properties. These will
+     *   be used to identify any transformation
+     *   that need to be applied to the image */
     png_init_io(png_ptr, fp);
     png_set_sig_bytes(png_ptr, 0);
+    png_read_info(png_ptr, info_ptr);
+
+    // If the file is 16-bit, convert to 8-bit.
+    if (png_get_bit_depth(png_ptr, info_ptr) == 16)
+        png_set_scale_16(png_ptr);
+
+    // If the file is greyscale, convert to RGB.
+    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY) ||
+        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA))
+        png_set_gray_to_rgb(png_ptr);
+
+    // If the image lacks an alpha channel, add an alpha channel.
+    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGB) ||
+        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY))
+        png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+
+    /* Not sure if this does what I think it does.
+    if (png_get_bit_depth(png_ptr, info_ptr) < 8) {
+        png_color_8 sigBit;
+        png_color_8p sigBitPtr= &sigBit;
+        png_get_sBIT(png_ptr, info_ptr, &sigBitPtr);
+        png_set_shift(png_ptr, sigBitPtr);
+    }
+     */
+
+    // Load the image's final properties.
     png_read_info(png_ptr, info_ptr);
     selfInfo.width = png_get_image_width(png_ptr, info_ptr);
     selfInfo.height = png_get_image_height(png_ptr, info_ptr);
@@ -47,24 +76,26 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
     selfInfo.numberOfPasses = (unsigned long int) png_set_interlace_handling(png_ptr);
     png_read_update_info(png_ptr, info_ptr);
     switch (png_get_color_type(png_ptr, info_ptr)) {
-        case 0:
+        case PNG_COLOR_TYPE_GRAY:
             selfInfo.colorType = PNG_ColorType::grayscale;
             break;
-        case 2:
+        case PNG_COLOR_TYPE_RGB:
             selfInfo.colorType = PNG_ColorType::RGB_truecolor;
             break;
-        case 3:
+        case PNG_COLOR_TYPE_PALETTE:
             selfInfo.colorType = PNG_ColorType::indexed;
             break;
-        case 4:
+        case PNG_COLOR_TYPE_GRAY_ALPHA:
             selfInfo.colorType = PNG_ColorType::grayscale_alpha;
             break;
-        case 6:
+        case PNG_COLOR_TYPE_RGB_ALPHA:
             selfInfo.colorType = PNG_ColorType::RGBA;
             break;
         default:
             throw UnsupportedColorMode();
     }
+
+    //if (selfInfo.colorType == PNG_ColorType)
 
     // Prepare a 2-D array for LibPNG to load the image data into.
     auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * selfInfo.height);

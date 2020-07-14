@@ -10,7 +10,7 @@
 
 class PNG_RGBA {
 public:
-    explicit PNG_RGBA(const std::string &filePath);
+    explicit PNG_RGBA(const std::string &filePath, bool canConvert);
 
     ~PNG_RGBA();
 

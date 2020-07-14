@@ -117,18 +117,20 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // Load the PNG. If the format is not supported, exit.
+    // Load the PNG. If the format or bit depth is not supported, exit.
     PNG_Info fileInfo = PNG_Loader::IdentifyPNG(inputFilePath);
-    if ((fileInfo.colorType != PNG_ColorType::RGBA) || (fileInfo.colorDepth != 8)) {
+    if (((fileInfo.colorType != PNG_ColorType::RGBA) && (fileInfo.colorType != PNG_ColorType::RGB_truecolor) &&
+         (fileInfo.colorType != PNG_ColorType::grayscale) && (fileInfo.colorType != PNG_ColorType::grayscale_alpha) &&
+         (fileInfo.colorDepth != 8) & (fileInfo.colorDepth != 16))) {
         std::cout << "File is not compatible.\n";
         return 1;
     }
-    auto png = PNG_RGBA(inputFilePath);
+    auto png = PNG_RGBA(inputFilePath, true);
 
     // Perform Bayer Dithering on the image using the color mode specified.
     png = bayerRGBA(png, bayer4X4, 4, using3Bit);
 
-    // Write the resultant PNG
+    // Write the resultant PNG.
     png.write_png_file(outputFilePath);
 
     return 0;
