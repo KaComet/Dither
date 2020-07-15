@@ -69,7 +69,6 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath, bool canConvert) {
      */
 
     // Load the image's final properties.
-    png_read_info(png_ptr, info_ptr);
     selfInfo.width = png_get_image_width(png_ptr, info_ptr);
     selfInfo.height = png_get_image_height(png_ptr, info_ptr);
     selfInfo.colorDepth = png_get_bit_depth(png_ptr, info_ptr);
