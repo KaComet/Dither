@@ -5,27 +5,14 @@
 #include "PNG_structs.h"
 
 PNG_Info PNG_Loader::IdentifyPNG(const std::string &filePath) {
-    // Open stream at file path.
-    std::FILE *fp = fopen(filePath.c_str(), "rb");
-
-    /* If file path does not point to a valid
-     *   file or could not be opened, throw. */
-    if (fp == nullptr) {
-        throw BadPath();
-    }
-
-    // If the file is not a PNG, throw.
-    if (!fileIsPNG(fp)) {
-        throw NotPNG();
-    }
-
-    // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
+        // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                                                  (png_voidp) nullptr/*user_error_ptr*/,
                                                  nullptr/*user_error_fn*/,
                                                  nullptr/*user_warning_fn*/);
-    if (!png_ptr)
+    if (!png_ptr) {
         throw std::runtime_error("Internal Error: Could not create PNG object");
+    }
     png_infop info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr) {
         png_destroy_read_struct(&png_ptr, (png_infopp) nullptr, (png_infopp) nullptr);
@@ -38,11 +25,25 @@ PNG_Info PNG_Loader::IdentifyPNG(const std::string &filePath) {
     }
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        fclose(fp);
         throw std::runtime_error("Exception: jumped");
     }
 
     PNG_Info result{};
+
+    // Open stream at file path.
+    std::FILE *fp = fopen(filePath.c_str(), "rb");
+
+    /* If file path does not point to a valid
+     *   file or could not be opened, throw. */
+    if (fp == nullptr) {
+        throw BadPath();
+    }
+
+    // If the file is not a PNG, throw.
+    if (!fileIsPNG(fp)) {
+        fclose(fp);
+        throw NotPNG();
+    }
 
     // Load the image's properties.
     png_init_io(png_ptr, fp);
@@ -70,8 +71,10 @@ PNG_Info PNG_Loader::IdentifyPNG(const std::string &filePath) {
             result.colorType = PNG_ColorType::RGBA;
             break;
         default:
+            fclose(fp);
             throw UnsupportedColorMode();
     }
+    fclose(fp);
 
     return result;
 }

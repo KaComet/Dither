@@ -10,9 +10,10 @@
 
 class PNG_RGBA {
 public:
-    explicit PNG_RGBA(const std::string &filePath, bool canConvert);
+    PNG_RGBA();
+    explicit PNG_RGBA(const std::string &filePath);
 
-    ~PNG_RGBA();
+    ~PNG_RGBA() = default;
 
     /* Returns the RGB value of the indicated pixel. Returns nothing if pixel is
      *   outside the bounds of the image. */

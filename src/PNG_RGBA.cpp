@@ -1,19 +1,16 @@
 #include "PNG_RGBA.h"
 #include <cmath>
 
-PNG_RGBA::PNG_RGBA(const std::string &filePath, bool canConvert) {
-    // Open stream at file path.
-    std::FILE *fp = fopen(filePath.c_str(), "rb");
+PNG_RGBA::PNG_RGBA() {
+    pngData = PNG_RGB_Array(25);
+    selfInfo.colorDepth = 0x8;
+    selfInfo.colorType = PNG_ColorType::RGBA;
+    selfInfo.width = 5;
+    selfInfo.height = 5;
+    selfInfo.numberOfPasses = 1;
+}
 
-    /* If file path does not point to a valid
-     *   file or could not be opened, throw. */
-    if (fp == nullptr)
-        throw BadPath();
-
-    // If the file is not a PNG, throw.
-    if (!PNG_Loader::fileIsPNG(fp))
-        throw NotPNG();
-
+PNG_RGBA::PNG_RGBA(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                                                  (png_voidp) nullptr/*user_error_ptr*/,
@@ -34,8 +31,22 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath, bool canConvert) {
 
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        fclose(fp);
         throw std::runtime_error("Exception: jumped");
+    }
+
+    // Open stream at file path.
+    std::FILE *fp = fopen(filePath.c_str(), "rb");
+
+    /* If file path does not point to a valid
+     *   file or could not be opened, throw. */
+    if (fp == nullptr) {
+        throw BadPath();
+    }
+
+    // If the file is not a PNG, throw.
+    if (!PNG_Loader::fileIsPNG(fp)) {
+        fclose(fp);
+        throw NotPNG();
     }
 
     /* Load the image's properties. These will
@@ -69,41 +80,42 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath, bool canConvert) {
      */
 
     // Load the image's final properties.
-    selfInfo.width = png_get_image_width(png_ptr, info_ptr);
-    selfInfo.height = png_get_image_height(png_ptr, info_ptr);
-    selfInfo.colorDepth = png_get_bit_depth(png_ptr, info_ptr);
-    selfInfo.numberOfPasses = (unsigned long int) png_set_interlace_handling(png_ptr);
+    PNG_Info tempInfo{};
+    tempInfo.width = png_get_image_width(png_ptr, info_ptr);
+    tempInfo.height = png_get_image_height(png_ptr, info_ptr);
+    tempInfo.colorDepth = png_get_bit_depth(png_ptr, info_ptr);
+    tempInfo.numberOfPasses = (unsigned long int) png_set_interlace_handling(png_ptr);
     png_read_update_info(png_ptr, info_ptr);
     switch (png_get_color_type(png_ptr, info_ptr)) {
         case PNG_COLOR_TYPE_GRAY:
-            selfInfo.colorType = PNG_ColorType::grayscale;
+            tempInfo.colorType = PNG_ColorType::grayscale;
             break;
         case PNG_COLOR_TYPE_RGB:
-            selfInfo.colorType = PNG_ColorType::RGB_truecolor;
+            tempInfo.colorType = PNG_ColorType::RGB_truecolor;
             break;
         case PNG_COLOR_TYPE_PALETTE:
-            selfInfo.colorType = PNG_ColorType::indexed;
+            tempInfo.colorType = PNG_ColorType::indexed;
             break;
         case PNG_COLOR_TYPE_GRAY_ALPHA:
-            selfInfo.colorType = PNG_ColorType::grayscale_alpha;
+            tempInfo.colorType = PNG_ColorType::grayscale_alpha;
             break;
         case PNG_COLOR_TYPE_RGB_ALPHA:
-            selfInfo.colorType = PNG_ColorType::RGBA;
+            tempInfo.colorType = PNG_ColorType::RGBA;
             break;
         default:
+            fclose(fp);
             throw UnsupportedColorMode();
     }
 
-    //if (selfInfo.colorType == PNG_ColorType)
-
     // Prepare a 2-D array for LibPNG to load the image data into.
-    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * selfInfo.height);
-    for (unsigned long int y = 0; y < selfInfo.height; y++)
+    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * tempInfo.height);
+    for (unsigned long int y = 0; y < tempInfo.height; y++)
         rowPointers[y] = (png_byte *) malloc(png_get_rowbytes(png_ptr, info_ptr));
 
     // Load image data.
     png_read_image(png_ptr, rowPointers);
     fclose(fp);
+    selfInfo = tempInfo;
 
     // Load transfer data from 2-D array to a 1-D array.
     pngData = PNG_RGB_Array((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width);
@@ -120,35 +132,36 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath, bool canConvert) {
     free(rowPointers);
 }
 
-PNG_RGBA::~PNG_RGBA() {
-    //delete[] pngData;
-}
-
 PNG_Info PNG_RGBA::getInfo() {
     return selfInfo;
 }
 
 void PNG_RGBA::write_png_file(const std::string &file_path) {
+    // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
+    auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png_ptr) {
+        throw std::runtime_error("Internal Error: Could not create PNG object");
+    }
+    auto info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        throw std::runtime_error("Internal Error: Could not create info object");
+    }
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        throw std::runtime_error("Exception: jumped");
+    }
     // Create stream at file path.
     FILE *fp = fopen(file_path.c_str(), "wb");
 
     /* If stream could not be create
      *   at file path, throw */
-    if (!fp)
+    if (fp == nullptr) {
         throw BadPath();
-
-    // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-    if (!png_ptr)
-        throw std::runtime_error("Internal Error: Could not create PNG object");
-    auto info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr)
-        throw std::runtime_error("Internal Error: Could not create info object");
-    if (setjmp(png_jmpbuf(png_ptr)))
-        throw std::runtime_error("Exception: jumped");
+    }
     png_init_io(png_ptr, fp);
-    if (setjmp(png_jmpbuf(png_ptr)))
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        fclose(fp);
         throw std::runtime_error("Exception: jumped");
+    }
 
     // Set and load the output settings.
     png_set_IHDR(png_ptr, info_ptr, selfInfo.width, selfInfo.height,
@@ -156,8 +169,9 @@ void PNG_RGBA::write_png_file(const std::string &file_path) {
                  PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     png_write_info(png_ptr, info_ptr);
 
-    if (setjmp(png_jmpbuf(png_ptr)))
+    if (setjmp(png_jmpbuf(png_ptr))) {
         throw std::runtime_error("Exception: jumped");
+    }
 
     // Prepare a 2-D array for LibPNG to load the image data from.
     auto rows = new png_bytep[selfInfo.height];

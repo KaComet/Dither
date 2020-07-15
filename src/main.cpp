@@ -118,20 +118,59 @@ int main(int argc, char *argv[]) {
     }
 
     // Load the PNG. If the format or bit depth is not supported, exit.
-    PNG_Info fileInfo = PNG_Loader::IdentifyPNG(inputFilePath);
+    PNG_Info fileInfo{};
+    try {
+        fileInfo = PNG_Loader::IdentifyPNG(inputFilePath);
+    } catch (BadPath &e) {
+        std::cout << "Could not load file at source. Aborting." << std::endl;
+        exit(1);
+    } catch (NotPNG &e) {
+        std::cout << "File is not a PNG. Aborting" << std::endl;
+        exit(1);
+    } catch (std::runtime_error &e) {
+        std::cout << "Fatal error. Program threw the following exception: " << e.what() << std::endl;
+        exit(1);
+    } catch (UnsupportedColorMode &e) {
+        std::cout << "File color mode not supported. Aborting." << std::endl;
+        exit(1);
+    }
     if (((fileInfo.colorType != PNG_ColorType::RGBA) && (fileInfo.colorType != PNG_ColorType::RGB_truecolor) &&
          (fileInfo.colorType != PNG_ColorType::grayscale) && (fileInfo.colorType != PNG_ColorType::grayscale_alpha) &&
          (fileInfo.colorDepth != 8) & (fileInfo.colorDepth != 16))) {
         std::cout << "File is not compatible.\n";
         return 1;
     }
-    auto png = PNG_RGBA(inputFilePath, true);
+
+    PNG_RGBA png;
+    try {
+        png = PNG_RGBA(inputFilePath);
+    } catch (BadPath &e) {
+        std::cout << "Could not load file at source. Aborting." << std::endl;
+        exit(1);
+    } catch (NotPNG &e) {
+        std::cout << "File is not a PNG. Aborting" << std::endl;
+        exit(1);
+    } catch (std::runtime_error &e) {
+        std::cout << "Fatal error. Program threw the following exception: " << e.what() << std::endl;
+        exit(1);
+    } catch (UnsupportedColorMode &e) {
+        std::cout << "File color mode not supported. Aborting." << std::endl;
+        exit(1);
+    }
 
     // Perform Bayer Dithering on the image using the color mode specified.
     png = bayerRGBA(png, bayer4X4, 4, using3Bit);
 
     // Write the resultant PNG.
-    png.write_png_file(outputFilePath);
+    try {
+        png.write_png_file(outputFilePath);
+    } catch (BadPath &e) {
+        std::cout << "Could not create file at destination. Aborting." << std::endl;
+        exit(1);
+    } catch (std::runtime_error &e) {
+        std::cout << "Fatal error. Program threw the following exception: " << e.what() << std::endl;
+        exit(1);
+    }
 
     return 0;
 }
