@@ -70,6 +70,12 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
         (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY))
         png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
 
+    // If the file is a palette image, convert to RGBA
+    if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_PALETTE) {
+        png_set_palette_to_rgb(png_ptr);
+        png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+    }
+
     /* Not sure if this does what I think it does.
     if (png_get_bit_depth(png_ptr, info_ptr) < 8) {
         png_color_8 sigBit;
