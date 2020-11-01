@@ -6,13 +6,16 @@
 /* Essentially an array with added functions that allow for easy copying. */
 class PNG_RGB_Array {
 public:
-    explicit PNG_RGB_Array(unsigned long long nPixels);
+    explicit PNG_RGB_Array(unsigned long long nPixels, unsigned int nBits);
     PNG_RGB_Array(const PNG_RGB_Array &source);
 
     ~PNG_RGB_Array();
 
     // Returns element at n.
     RGBA_Pixel &at(unsigned long long n);
+
+    // Returns element at n.
+    [[nodiscard]] RGBA_Pixel atC(unsigned long long n) const;
 
     // Assignment operator
     PNG_RGB_Array &operator=(const PNG_RGB_Array &other) {
@@ -24,6 +27,7 @@ public:
 
             // Set the number of pixel and create the new array.
             _nPixels = other._nPixels;
+            _nBits = other._nBits;
             _data = new RGBA_Pixel[_nPixels];
 
             // Transfer the contents from the source array to the destination array.
@@ -34,8 +38,11 @@ public:
         return *this;
     }
 
+    [[nodiscard]] unsigned int getDepthInBits() const noexcept;
+
 protected:
     RGBA_Pixel *_data; // Data array
+    unsigned int _nBits;
     unsigned long long _nPixels;
 };
 

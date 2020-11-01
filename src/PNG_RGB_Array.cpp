@@ -1,8 +1,7 @@
 #include "PNG_RGB_Array.h"
 
-PNG_RGB_Array::PNG_RGB_Array(unsigned long long int nPixels) {
+PNG_RGB_Array::PNG_RGB_Array(unsigned long long int nPixels, unsigned int nBits) : _nBits(nBits), _nPixels(nPixels) {
     _data = new RGBA_Pixel[nPixels];
-    _nPixels = nPixels;
 }
 
 // Copy constructor
@@ -19,4 +18,12 @@ PNG_RGB_Array::~PNG_RGB_Array() {
 
 RGBA_Pixel &PNG_RGB_Array::at(unsigned long long int n) {
     return _data[n];
+}
+
+RGBA_Pixel PNG_RGB_Array::atC(unsigned long long int n) const {
+    return _data[n];
+}
+
+unsigned int PNG_RGB_Array::getDepthInBits() const noexcept {
+    return _nBits;
 }

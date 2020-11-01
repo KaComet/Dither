@@ -9,12 +9,14 @@
 #include "PNG_RGBA.h"
 #include "PNG_structs.h"
 
-const unsigned char bayer4X4[4][4] = {{0,  8,  2,  10},
+const double bayer4X4[4][4] = {{0,  8,  2,  10},
                                       {12, 4,  14, 6},
                                       {3,  11, 1,  9},
                                       {15, 7,  13, 5}};
 
-PNG_RGBA bayerRGBA(PNG_RGBA &input, const unsigned char map[][4], unsigned char mapWidth, bool using3Bit);
+PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned char mapWidth, bool using3Bit, unsigned int maxValue);
+
+bool exceedsThreshold(double value, double maxValue, double threshold, double thresholdDivisor);
 
 template<typename T>
 T pixelToGrey(T red, T blue, T green);
@@ -159,7 +161,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Perform Bayer Dithering on the image using the color mode specified.
-    png = bayerRGBA(png, bayer4X4, 4, using3Bit);
+    png = bayerRGBA(png, bayer4X4, 4, using3Bit, pow(2, png.getInfo().colorDepth) - 1);
 
     // Write the resultant PNG.
     try {
@@ -175,7 +177,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-PNG_RGBA bayerRGBA(PNG_RGBA &input, const unsigned char map[][4], unsigned char mapWidth, bool using3Bit) {
+PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned char mapWidth, bool using3Bit, unsigned int maxValue) {
     PNG_RGBA resultPNG = input;
 
     // Scan through every pixel in the image.
@@ -201,29 +203,29 @@ PNG_RGBA bayerRGBA(PNG_RGBA &input, const unsigned char map[][4], unsigned char 
                         continue;
 
                     // The default value of the result is a black pixel.
-                    auto resultPixel = RGBA_Pixel{0x00, 0x00, 0x00, 0xFF};
+                    auto resultPixel = RGBA_Pixel{0x00, 0x00, 0x00, maxValue};
                     RGBA_Pixel pixel = pixelOpt.value();
 
                     // If using 3Bit color mode.
                     if (using3Bit) {
                         // If the color red exceeds the threshold, fill it in.
-                        if ((((double) pixel.red) / (255.0) > (((double) map[m_x][m_y]) / (16.0))))
-                            resultPixel.red += 0xFF;
+                        if (exceedsThreshold(pixel.red, maxValue, map[m_x][m_y], 16.0))
+                            resultPixel.red = maxValue;
 
                         // If the color blue exceeds the threshold, fill it in.
-                        if ((((double) pixel.blue) / (255.0) > (((double) map[m_x][m_y]) / (16.0))))
-                            resultPixel.blue += 0xFF;
+                        if (exceedsThreshold(pixel.blue, maxValue, map[m_x][m_y], 16.0))
+                            resultPixel.blue = maxValue;
 
                         // If the color green exceeds the threshold, fill it in.
-                        if ((((double) pixel.green) / (255.0) > (((double) map[m_x][m_y]) / (16.0))))
-                            resultPixel.green += 0xFF;
+                        if (exceedsThreshold(pixel.green, maxValue, map[m_x][m_y], 16.0))
+                            resultPixel.green = maxValue;
                     } else { // If using greyscale mode.
                         // Convert the pixel to greyscale.
-                        png_byte grey = pixelToGrey(pixel.red, pixel.blue, pixel.green);
+                        unsigned int grey = pixelToGrey(pixel.red, pixel.blue, pixel.green);
 
                         // If the pixel's value exceeds the threshold, fill it in.
-                        if ((((double) grey) / (255.0) > (((double) map[m_x][m_y]) / (16.0))))
-                            resultPixel = RGBA_Pixel{0xFF, 0xFF, 0xFF, 255};
+                        if (exceedsThreshold(grey, maxValue, map[m_x][m_y], 16.0))
+                            resultPixel = RGBA_Pixel{maxValue, maxValue, maxValue, maxValue};
                     }
 
                     // Save the resultant pixel to the output PNG.
@@ -234,6 +236,10 @@ PNG_RGBA bayerRGBA(PNG_RGBA &input, const unsigned char map[][4], unsigned char 
     }
 
     return resultPNG;
+}
+
+bool exceedsThreshold(double value, double maxValue, double threshold, double thresholdDivisor) {
+    return (value / maxValue) > (threshold / thresholdDivisor);
 }
 
 /* Converts a color pixel to greyscale.
