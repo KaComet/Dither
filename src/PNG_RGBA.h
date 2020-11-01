@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include "PNG_Loader.h"
 #include "PNG_structs.h"
-#include "PNG_RGB_Array.h"
+#include "PNG_RGBA_Array.h"
 
 class PNG_RGBA {
 public:
@@ -45,8 +45,8 @@ private:
     // Gets the index for a 1-D RGB array for a given x and y.
     static unsigned long int getIndex(unsigned long int x, unsigned long int y, unsigned long width);
 
-    PNG_Info selfInfo;  // Image properties.
-    PNG_RGB_Array pngData = PNG_RGB_Array(1, 0); // 1-D RGB array, the image's RGB values.
+    PNG_Info selfInfo{};  // Image properties.
+    PNG_RGBA_Array pngData = PNG_RGBA_Array(1, 0); // 1-D RGB array, the image's RGB values.
 };
 
 

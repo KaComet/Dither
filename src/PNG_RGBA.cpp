@@ -2,7 +2,7 @@
 #include <cmath>
 
 PNG_RGBA::PNG_RGBA() {
-    pngData = PNG_RGB_Array(25, 1);
+    pngData = PNG_RGBA_Array(25, 1);
     selfInfo.colorDepth = 0x8;
     selfInfo.colorType = PNG_ColorType::RGBA;
     selfInfo.width = 5;
@@ -123,8 +123,8 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
     selfInfo.colorDepth = colorDepth;
 
     // Load transfer data from 2-D array to a 1-D array.
-    pngData = PNG_RGB_Array((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
-                            colorDepth);
+    pngData = PNG_RGBA_Array((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
+                             colorDepth);
     for (unsigned int y = 0; y < selfInfo.height; y++) {
         for (unsigned int x = 0; x < selfInfo.width; x++) {
             auto a = getRGBA_raw(x, y, rowPointers, nBytesPerPixel);

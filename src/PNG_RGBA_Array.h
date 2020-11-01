@@ -1,15 +1,15 @@
-#ifndef DITHER_PNG_RGB_ARRAY_H
-#define DITHER_PNG_RGB_ARRAY_H
+#ifndef DITHER_PNG_RGBA_ARRAY_H
+#define DITHER_PNG_RGBA_ARRAY_H
 
 #include "PNG_structs.h"
 
 /* Essentially an array with added functions that allow for easy copying. */
-class PNG_RGB_Array {
+class PNG_RGBA_Array {
 public:
-    explicit PNG_RGB_Array(unsigned long long nPixels, unsigned int nBits);
-    PNG_RGB_Array(const PNG_RGB_Array &source);
+    explicit PNG_RGBA_Array(unsigned long long nPixels, unsigned int nBits);
+    PNG_RGBA_Array(const PNG_RGBA_Array &source);
 
-    ~PNG_RGB_Array();
+    ~PNG_RGBA_Array();
 
     // Returns element at n.
     RGBA_Pixel &at(unsigned long long n);
@@ -18,7 +18,7 @@ public:
     [[nodiscard]] RGBA_Pixel atC(unsigned long long n) const;
 
     // Assignment operator
-    PNG_RGB_Array &operator=(const PNG_RGB_Array &other) {
+    PNG_RGBA_Array &operator=(const PNG_RGBA_Array &other) {
         /* If the source and destination are the same, do nothing.
          *   This is also necessary to avoid a seg-fault */
         if ((_data != other._data) || (this == &other)) {
@@ -47,4 +47,4 @@ protected:
 };
 
 
-#endif //DITHER_PNG_RGB_ARRAY_H
+#endif //DITHER_PNG_RGBA_ARRAY_H
