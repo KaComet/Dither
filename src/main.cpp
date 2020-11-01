@@ -7,6 +7,7 @@
 #include <cmath>
 #include "PNG_Loader.h"
 #include "PNG_RGBA.h"
+#include "PNG_RGB.h"
 #include "PNG_structs.h"
 
 const double bayer4X4[4][4] = {{0,  8,  2,  10},

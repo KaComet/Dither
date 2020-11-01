@@ -1,8 +1,8 @@
-#include "PNG_RGBA.h"
+#include "PNG_RGB.h"
 #include <cmath>
 
-PNG_RGBA::PNG_RGBA() {
-    pngData = PNG_Data_Array<RGBA_Pixel>(25, 1);
+PNG_RGB::PNG_RGB() {
+    pngData = PNG_Data_Array<RGB_Pixel>(25, 1);
     selfInfo.colorDepth = 0x8;
     selfInfo.colorType = PNG_ColorType::RGBA;
     selfInfo.width = 5;
@@ -10,7 +10,7 @@ PNG_RGBA::PNG_RGBA() {
     selfInfo.numberOfPasses = 1;
 }
 
-PNG_RGBA::PNG_RGBA(const std::string &filePath) {
+PNG_RGB::PNG_RGB(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                                                  (png_voidp) nullptr/*user_error_ptr*/,
@@ -59,18 +59,21 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
 
     // If the file is greyscale, convert to RGB.
     if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA))
+        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA)) {
         png_set_gray_to_rgb(png_ptr);
+        png_set_strip_alpha(png_ptr);
+    }
 
-    // If the image lacks an alpha channel, add an alpha channel.
-    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGB) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY))
-        png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+    // If the image has an alpha channel, remove it.
+    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGBA) ||
+        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY)) {
+        png_set_strip_alpha(png_ptr);
+    }
 
-    // If the file is a palette image, convert to RGBA
+    // If the file is a palette image, convert to RGB
     if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_PALETTE) {
         png_set_palette_to_rgb(png_ptr);
-        png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+        png_set_strip_alpha(png_ptr);
     }
 
     // Load the image's final properties.
@@ -123,11 +126,11 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
     selfInfo.colorDepth = colorDepth;
 
     // Load transfer data from 2-D array to a 1-D array.
-    pngData = PNG_Data_Array<RGBA_Pixel>((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
+    pngData = PNG_Data_Array<RGB_Pixel>((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
                              colorDepth);
     for (unsigned int y = 0; y < selfInfo.height; y++) {
         for (unsigned int x = 0; x < selfInfo.width; x++) {
-            auto a = getRGBA_raw(x, y, rowPointers, nBytesPerPixel);
+            auto a = getRGB_raw(x, y, rowPointers, nBytesPerPixel);
             pngData.at(getIndex(x, y, selfInfo.width)) = a;
         }
     }
@@ -138,11 +141,11 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
     free(rowPointers);
 }
 
-PNG_Info PNG_RGBA::getInfo() const noexcept {
+PNG_Info PNG_RGB::getInfo() const noexcept {
     return selfInfo;
 }
 
-void PNG_RGBA::write_png_file(const std::string &file_path) const {
+void PNG_RGB::write_png_file(const std::string &file_path) const {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png_ptr) {
@@ -158,7 +161,7 @@ void PNG_RGBA::write_png_file(const std::string &file_path) const {
     // Create stream at file path.
     FILE *fp = fopen(file_path.c_str(), "wb");
 
-    /* If stream could not be create
+    /* If stream could not be created
      *   at file path, throw */
     if (fp == nullptr) {
         throw BadPath();
@@ -171,7 +174,7 @@ void PNG_RGBA::write_png_file(const std::string &file_path) const {
 
     // Set and load the output settings.
     png_set_IHDR(png_ptr, info_ptr, selfInfo.width, selfInfo.height,
-                 pngData.getDepthInBits(), PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
+                 pngData.getDepthInBits(), PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     png_write_info(png_ptr, info_ptr);
 
@@ -197,7 +200,7 @@ void PNG_RGBA::write_png_file(const std::string &file_path) const {
     for (unsigned long int y = 0; y < selfInfo.height; y++) {
         for (unsigned long int x = 0; x < selfInfo.width; x++) {
             auto pixel = getPixel(x, y).value();
-            setRGBA_raw(x, y, rowPointers, pixel, nBytesPerPixel);
+            setRGB_raw(x, y, rowPointers, pixel, nBytesPerPixel);
         }
     }
 
@@ -211,7 +214,7 @@ void PNG_RGBA::write_png_file(const std::string &file_path) const {
     fclose(fp);
 }
 
-std::optional<RGBA_Pixel> PNG_RGBA::getPixel(unsigned long int x, unsigned long int y) const noexcept {
+std::optional<RGB_Pixel> PNG_RGB::getPixel(unsigned long int x, unsigned long int y) const noexcept {
     // If x or y are outside the image bounds, return nothing.
     if ((x >= selfInfo.width) || (y >= selfInfo.height))
         return std::nullopt;
@@ -220,7 +223,7 @@ std::optional<RGBA_Pixel> PNG_RGBA::getPixel(unsigned long int x, unsigned long 
     return pngData.atC(getIndex(x, y, selfInfo.width));
 }
 
-bool PNG_RGBA::setPixel(unsigned long x, unsigned long y, RGBA_Pixel &value) {
+bool PNG_RGB::setPixel(unsigned long x, unsigned long y, RGB_Pixel &value) {
     // If x or y are outside the image bounds, return false.
     if ((x >= selfInfo.width) || (y >= selfInfo.height))
         return false;
@@ -230,13 +233,13 @@ bool PNG_RGBA::setPixel(unsigned long x, unsigned long y, RGBA_Pixel &value) {
     return true;
 }
 
-RGBA_Pixel
-PNG_RGBA::getRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor) {
+RGB_Pixel
+PNG_RGB::getRGB_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor) {
     // LibPNG magic.
     png_byte *row = PNG_array[y];
-    png_byte *ptr = &(row[x * 4 * nBytesPerColor]);
+    png_byte *ptr = &(row[x * 3 * nBytesPerColor]);
 
-    RGBA_Pixel result = RGBA_Pixel{0, 0, 0, 0};
+    RGB_Pixel result = RGB_Pixel{0, 0, 0};
     for (unsigned int i = 0; i < nBytesPerColor; i++)
         result.red += ptr[(0 * nBytesPerColor) + i] << (((nBytesPerColor - 1) - i) * 8);
 
@@ -246,18 +249,15 @@ PNG_RGBA::getRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_a
     for (unsigned int i = 0; i < nBytesPerColor; i++)
         result.blue += ptr[(2 * nBytesPerColor) + i] << (((nBytesPerColor - 1) - i) * 8);
 
-    for (unsigned int i = 0; i < nBytesPerColor; i++)
-        result.alpha += ptr[(3 * nBytesPerColor) + i] << (((nBytesPerColor - 1) - i) * 8);
-
     // Return the pixel data.
     return result;
 }
 
-void PNG_RGBA::setRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, RGBA_Pixel &pixel,
-                           unsigned int nBytesPerColor) {
+void PNG_RGB::setRGB_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, RGB_Pixel &pixel,
+                         unsigned int nBytesPerColor) {
     // LibPNG magic.
     png_byte *row = PNG_array[y];
-    png_byte *ptr = &(row[x * 4 * nBytesPerColor]);
+    png_byte *ptr = &(row[x * 3 * nBytesPerColor]);
 
     for (unsigned int i = 0; i < nBytesPerColor; i++)
         ptr[(0 * nBytesPerColor) + i] = (pixel.red >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
@@ -267,12 +267,9 @@ void PNG_RGBA::setRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp 
 
     for (unsigned int i = 0; i < nBytesPerColor; i++)
         ptr[(2 * nBytesPerColor) + i] = (pixel.blue >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
-
-    for (unsigned int i = 0; i < nBytesPerColor; i++)
-        ptr[(3 * nBytesPerColor) + i] = (pixel.alpha >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
 }
 
-unsigned long int PNG_RGBA::getIndex(unsigned long x, unsigned long y, unsigned long width) {
+unsigned long int PNG_RGB::getIndex(unsigned long x, unsigned long y, unsigned long width) {
     return x + (y * width);
 }
 

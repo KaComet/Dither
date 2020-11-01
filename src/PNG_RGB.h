@@ -1,5 +1,5 @@
-#ifndef DITHER_PNG_RGBA_H
-#define DITHER_PNG_RGBA_H
+#ifndef DITHER_PNG_RGB_H
+#define DITHER_PNG_RGB_H
 
 #include <png.h>
 #include <string>
@@ -9,21 +9,21 @@
 #include "PNG_structs.h"
 #include "PNG_Data_Array.h"
 
-class PNG_RGBA {
+class PNG_RGB {
 public:
-    PNG_RGBA();
+    PNG_RGB();
 
-    explicit PNG_RGBA(const std::string &filePath);
+    explicit PNG_RGB(const std::string &filePath);
 
-    ~PNG_RGBA() = default;
+    ~PNG_RGB() = default;
 
     /* Returns the RGB value of the indicated pixel. Returns nothing if pixel is
      *   outside the bounds of the image. */
-    [[nodiscard]] std::optional<RGBA_Pixel> getPixel(unsigned long int x, unsigned long int y) const noexcept;
+    [[nodiscard]] std::optional<RGB_Pixel> getPixel(unsigned long int x, unsigned long int y) const noexcept;
 
     /* Sets the pixel at x and y to the indicated RGB value. Returns true if
      *   successful. Returns false if x or y are outside the bounds of the image. */
-    bool setPixel(unsigned long int x, unsigned long int y, RGBA_Pixel &value);
+    bool setPixel(unsigned long int x, unsigned long int y, RGB_Pixel &value);
 
     /* Returns the a struct containing
      *   the properties of the image. */
@@ -35,19 +35,19 @@ public:
 private:
     /* Returns the RGB pixel value at an x and y for a given LibPNG png_bytepp array. Used for
      *   converting the weird LibPNG format to a more efficient 1-D RGB array. */
-    static RGBA_Pixel
-    getRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor = 1);
+    static RGB_Pixel
+    getRGB_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor = 1);
 
     // sets a pixel at an x and y for a given LibPNG png_bytepp array. Used for writing images to disk
-    static void setRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, RGBA_Pixel &pixel,
-                            unsigned int nBytesPerColor);
+    static void setRGB_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, RGB_Pixel &pixel,
+                           unsigned int nBytesPerColor);
 
     // Gets the index for a 1-D RGB array for a given x and y.
     static unsigned long int getIndex(unsigned long int x, unsigned long int y, unsigned long width);
 
     PNG_Info selfInfo{};  // Image properties.
-    PNG_Data_Array<RGBA_Pixel> pngData = PNG_Data_Array<RGBA_Pixel>(1, 0); // 1-D RGB array, the image's RGB values.
+    PNG_Data_Array<RGB_Pixel> pngData = PNG_Data_Array<RGB_Pixel>(1, 0); // 1-D RGB array, the image's RGB values.
 };
 
 
-#endif //DITHER_PNG_RGBA_H
+#endif //DITHER_PNG_RGB_H
