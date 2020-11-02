@@ -26,6 +26,8 @@ struct RGB_Pixel {
     unsigned int red, green, blue;
 };
 
+typedef unsigned int GreyPixel;
+
 struct HSV_Color {
     unsigned int hue, sat, value;
 };

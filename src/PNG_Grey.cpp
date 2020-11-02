@@ -1,16 +1,25 @@
-#include "PNG_RGB.h"
+#include "PNG_Grey.h"
 #include <cmath>
 
-PNG_RGB::PNG_RGB() {
-    pngData = PNG_Data_Array<RGB_Pixel>(25, 1);
-    selfInfo.colorDepth = 0x8;
-    selfInfo.colorType = PNG_ColorType::RGB_truecolor;
+PNG_Grey::PNG_Grey() {
+    pngData = PNG_Data_Array<GreyPixel>(25, 1);
+    selfInfo.colorDepth = 1;
+    selfInfo.colorType = PNG_ColorType::grayscale;
     selfInfo.width = 5;
     selfInfo.height = 5;
     selfInfo.numberOfPasses = 1;
 }
 
-PNG_RGB::PNG_RGB(const std::string &filePath) {
+PNG_Grey::PNG_Grey(unsigned long int width, unsigned long int height, unsigned int colorDepth) {
+    pngData = PNG_Data_Array<GreyPixel>((unsigned long long int) height * (unsigned long long int) width, colorDepth);
+    selfInfo.colorDepth = colorDepth;
+    selfInfo.colorType = PNG_ColorType::grayscale;
+    selfInfo.width = width;
+    selfInfo.height = height;
+    selfInfo.numberOfPasses = 1;
+}
+
+PNG_Grey::PNG_Grey(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                                                  (png_voidp) nullptr/*user_error_ptr*/,
@@ -126,11 +135,12 @@ PNG_RGB::PNG_RGB(const std::string &filePath) {
     selfInfo.colorDepth = colorDepth;
 
     // Load transfer data from 2-D array to a 1-D array.
-    pngData = PNG_Data_Array<RGB_Pixel>((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
-                             colorDepth);
+    pngData = PNG_Data_Array<GreyPixel>(
+            (unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
+            colorDepth);
     for (unsigned int y = 0; y < selfInfo.height; y++) {
         for (unsigned int x = 0; x < selfInfo.width; x++) {
-            auto a = getRGB_raw(x, y, rowPointers, nBytesPerPixel);
+            auto a = getGrey_raw(x, y, rowPointers, nBytesPerPixel);
             pngData.at(getIndex(x, y, selfInfo.width)) = a;
         }
     }
@@ -141,11 +151,11 @@ PNG_RGB::PNG_RGB(const std::string &filePath) {
     free(rowPointers);
 }
 
-PNG_Info PNG_RGB::getInfo() const noexcept {
+PNG_Info PNG_Grey::getInfo() const noexcept {
     return selfInfo;
 }
 
-void PNG_RGB::write_png_file(const std::string &file_path) const {
+void PNG_Grey::write_png_file(const std::string &file_path) const {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png_ptr) {
@@ -174,7 +184,7 @@ void PNG_RGB::write_png_file(const std::string &file_path) const {
 
     // Set and load the output settings.
     png_set_IHDR(png_ptr, info_ptr, selfInfo.width, selfInfo.height,
-                 pngData.getDepthInBits(), PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 pngData.getDepthInBits(), PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     png_write_info(png_ptr, info_ptr);
 
@@ -200,7 +210,7 @@ void PNG_RGB::write_png_file(const std::string &file_path) const {
     for (unsigned long int y = 0; y < selfInfo.height; y++) {
         for (unsigned long int x = 0; x < selfInfo.width; x++) {
             auto pixel = getPixel(x, y).value();
-            setRGB_raw(x, y, rowPointers, pixel, nBytesPerPixel);
+            setGrey_raw(x, y, rowPointers, pixel, nBytesPerPixel);
         }
     }
 
@@ -214,7 +224,7 @@ void PNG_RGB::write_png_file(const std::string &file_path) const {
     fclose(fp);
 }
 
-std::optional<RGB_Pixel> PNG_RGB::getPixel(unsigned long int x, unsigned long int y) const noexcept {
+std::optional<GreyPixel> PNG_Grey::getPixel(unsigned long int x, unsigned long int y) const noexcept {
     // If x or y are outside the image bounds, return nothing.
     if ((x >= selfInfo.width) || (y >= selfInfo.height))
         return std::nullopt;
@@ -223,7 +233,7 @@ std::optional<RGB_Pixel> PNG_RGB::getPixel(unsigned long int x, unsigned long in
     return pngData.atC(getIndex(x, y, selfInfo.width));
 }
 
-bool PNG_RGB::setPixel(unsigned long x, unsigned long y, RGB_Pixel &value) {
+bool PNG_Grey::setPixel(unsigned long x, unsigned long y, GreyPixel value) {
     // If x or y are outside the image bounds, return false.
     if ((x >= selfInfo.width) || (y >= selfInfo.height))
         return false;
@@ -233,43 +243,31 @@ bool PNG_RGB::setPixel(unsigned long x, unsigned long y, RGB_Pixel &value) {
     return true;
 }
 
-RGB_Pixel
-PNG_RGB::getRGB_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor) {
+GreyPixel
+PNG_Grey::getGrey_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor) {
     // LibPNG magic.
     png_byte *row = PNG_array[y];
-    png_byte *ptr = &(row[x * 3 * nBytesPerColor]);
+    png_byte *ptr = &(row[x * nBytesPerColor]);
 
-    RGB_Pixel result = RGB_Pixel{0, 0, 0};
+    GreyPixel result = 0;
     for (unsigned int i = 0; i < nBytesPerColor; i++)
-        result.red += ptr[(0 * nBytesPerColor) + i] << (((nBytesPerColor - 1) - i) * 8);
-
-    for (unsigned int i = 0; i < nBytesPerColor; i++)
-        result.green += ptr[(1 * nBytesPerColor) + i] << (((nBytesPerColor - 1) - i) * 8);
-
-    for (unsigned int i = 0; i < nBytesPerColor; i++)
-        result.blue += ptr[(2 * nBytesPerColor) + i] << (((nBytesPerColor - 1) - i) * 8);
+        result += ptr[i] << (((nBytesPerColor - 1) - i) * 8);
 
     // Return the pixel data.
     return result;
 }
 
-void PNG_RGB::setRGB_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, RGB_Pixel &pixel,
-                         unsigned int nBytesPerColor) {
+void PNG_Grey::setGrey_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, GreyPixel pixel,
+                           unsigned int nBytesPerColor) {
     // LibPNG magic.
     png_byte *row = PNG_array[y];
-    png_byte *ptr = &(row[x * 3 * nBytesPerColor]);
+    png_byte *ptr = &(row[x * nBytesPerColor]);
 
     for (unsigned int i = 0; i < nBytesPerColor; i++)
-        ptr[(0 * nBytesPerColor) + i] = (pixel.red >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
-
-    for (unsigned int i = 0; i < nBytesPerColor; i++)
-        ptr[(1 * nBytesPerColor) + i] = (pixel.green >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
-
-    for (unsigned int i = 0; i < nBytesPerColor; i++)
-        ptr[(2 * nBytesPerColor) + i] = (pixel.blue >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
+        ptr[i] = (pixel >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
 }
 
-unsigned long int PNG_RGB::getIndex(unsigned long x, unsigned long y, unsigned long width) {
+unsigned long int PNG_Grey::getIndex(unsigned long x, unsigned long y, unsigned long width) {
     return x + (y * width);
 }
 

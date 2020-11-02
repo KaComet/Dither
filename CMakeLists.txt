@@ -17,6 +17,8 @@ add_executable(dither
         src/ColorPalette.h
         src/PNG_Data_Array.h
         src/PNG_RGB.cpp
-        src/PNG_RGB.h)
+        src/PNG_RGB.h
+        src/PNG_Grey.cpp
+        src/PNG_Grey.h)
 
 target_link_libraries(dither ${PNG_LIBRARIES})

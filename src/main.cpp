@@ -1,13 +1,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
-#include <optional>
 #include <string>
 #include <png.h>
 #include <cmath>
 #include "PNG_Loader.h"
 #include "PNG_RGBA.h"
-#include "PNG_RGB.h"
+#include "PNG_Grey.h"
 #include "PNG_structs.h"
 
 const double bayer4X4[4][4] = {{0,  8,  2,  10},
@@ -15,8 +14,9 @@ const double bayer4X4[4][4] = {{0,  8,  2,  10},
                                {3,  11, 1,  9},
                                {15, 7,  13, 5}};
 
-PNG_RGBA
-bayerRGBA(PNG_RGBA &input, const double map[][4], bool using3Bit, unsigned int maxValue);
+PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned int maxValue);
+
+PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue);
 
 bool exceedsThreshold(double value, double maxValue, double threshold, double thresholdDivisor);
 
@@ -78,23 +78,38 @@ int main(int argc, char *argv[]) {
     }
 
     // Perform Bayer Dithering on the image using the color mode specified.
-    png = bayerRGBA(png, bayer4X4, using3Bit, pow(2, png.getInfo().colorDepth) - 1);
+    if (using3Bit) {
+        png = bayerRGBA(png, bayer4X4, pow(2, png.getInfo().colorDepth) - 1);
 
-    // Write the resultant PNG.
-    try {
-        png.write_png_file(outputFilePath);
-    } catch (BadPath &e) {
-        std::cout << "Could not create file at destination. Aborting." << std::endl;
-        exit(1);
-    } catch (std::runtime_error &e) {
-        std::cout << "Fatal error. Program threw the following exception: " << e.what() << std::endl;
-        exit(1);
+        // Write the resultant PNG.
+        try {
+            png.write_png_file(outputFilePath);
+        } catch (BadPath &e) {
+            std::cout << "Could not create file at destination. Aborting." << std::endl;
+            exit(1);
+        } catch (std::runtime_error &e) {
+            std::cout << "Fatal error. Program threw the following exception: " << e.what() << std::endl;
+            exit(1);
+        }
+    } else {
+        PNG_Grey pngGrey = bayerGrey(png, bayer4X4, pow(2, png.getInfo().colorDepth) - 1);
+
+        // Write the resultant PNG.
+        try {
+            pngGrey.write_png_file(outputFilePath);
+        } catch (BadPath &e) {
+            std::cout << "Could not create file at destination. Aborting." << std::endl;
+            exit(1);
+        } catch (std::runtime_error &e) {
+            std::cout << "Fatal error. Program threw the following exception: " << e.what() << std::endl;
+            exit(1);
+        }
     }
 
     return 0;
 }
 
-PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], bool using3Bit, unsigned int maxValue) {
+PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned int maxValue) {
     PNG_RGBA resultPNG = input;
 
     // Scan through every pixel in the image.
@@ -106,27 +121,45 @@ PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], bool using3Bit, unsig
             // The default value of the result is a black pixel.
             auto resultPixel = RGBA_Pixel{0x00, 0x00, 0x00, maxValue};
 
+            // If the color red exceeds the threshold, fill it in.
+            if (exceedsThreshold(pixel.red, maxValue, map[x % 4][y % 4], 16.0))
+                resultPixel.red = maxValue;
+
+            // If the color blue exceeds the threshold, fill it in.
+            if (exceedsThreshold(pixel.blue, maxValue, map[x % 4][y % 4], 16.0))
+                resultPixel.blue = maxValue;
+
+            // If the color green exceeds the threshold, fill it in.
+            if (exceedsThreshold(pixel.green, maxValue, map[x % 4][y % 4], 16.0))
+                resultPixel.green = maxValue;
+
+            // Save the resultant pixel to the output PNG.
+            resultPNG.setPixel(x, y, resultPixel);
+        }
+    }
+
+    return resultPNG;
+}
+
+PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue) {
+    PNG_Grey resultPNG = PNG_Grey(input.getInfo().width, input.getInfo().height, 8);
+
+    // Scan through every pixel in the image.
+    for (png_uint_32 y = 0; y < resultPNG.getInfo().height; y++) {
+        for (png_uint_32 x = 0; x < resultPNG.getInfo().width; x++) {
+            // Get the pixel at the calculated location.
+            RGBA_Pixel pixel = input.getPixel(x, y).value();
+
+            // The default value of the result is a black pixel.
+            GreyPixel resultPixel = 0;
+
             // If using 3Bit color mode.
-            if (using3Bit) {
-                // If the color red exceeds the threshold, fill it in.
-                if (exceedsThreshold(pixel.red, maxValue, map[x % 4][y % 4], 16.0))
-                    resultPixel.red = maxValue;
+            // Convert the pixel to greyscale.
+            unsigned int grey = pixelToGrey(pixel.red, pixel.blue, pixel.green);
 
-                // If the color blue exceeds the threshold, fill it in.
-                if (exceedsThreshold(pixel.blue, maxValue, map[x % 4][y % 4], 16.0))
-                    resultPixel.blue = maxValue;
-
-                // If the color green exceeds the threshold, fill it in.
-                if (exceedsThreshold(pixel.green, maxValue, map[x % 4][y % 4], 16.0))
-                    resultPixel.green = maxValue;
-            } else { // If using greyscale mode.
-                // Convert the pixel to greyscale.
-                unsigned int grey = pixelToGrey(pixel.red, pixel.blue, pixel.green);
-
-                // If the pixel's value exceeds the threshold, fill it in.
-                if (exceedsThreshold(grey, maxValue, map[x % 4][y % 4], 16.0))
-                    resultPixel = RGBA_Pixel{maxValue, maxValue, maxValue, maxValue};
-            }
+            // If the pixel's value exceeds the threshold, fill it in.
+            if (exceedsThreshold(grey, maxValue, map[x % 4][y % 4], 16.0))
+                resultPixel = 255;
 
             // Save the resultant pixel to the output PNG.
             resultPNG.setPixel(x, y, resultPixel);
