@@ -58,15 +58,13 @@ PNG_RGB::PNG_RGB(const std::string &filePath) {
     unsigned int colorDepth = png_get_bit_depth(png_ptr, info_ptr);
 
     // If the file is greyscale, convert to RGB.
-    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA)) {
+    if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY) {
         png_set_gray_to_rgb(png_ptr);
-        png_set_strip_alpha(png_ptr);
     }
 
     // If the image has an alpha channel, remove it.
     if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGBA) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY)) {
+        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA)) {
         png_set_strip_alpha(png_ptr);
     }
 

@@ -78,7 +78,7 @@ PNG_Grey::PNG_Grey(const std::string &filePath) {
         png_set_strip_alpha(png_ptr);
     }
 
-    // If the file is greyscale, convert to RGB.
+    // If the file is RGB, convert to greyscale.
     if ((png_get_color_type(png_ptr, info_ptr) != PNG_COLOR_TYPE_GRAY)) {
         png_set_rgb_to_gray(png_ptr, 1, -1, -1);
     }
