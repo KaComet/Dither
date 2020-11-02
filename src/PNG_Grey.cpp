@@ -207,10 +207,19 @@ void PNG_Grey::write_png_file(const std::string &file_path) const {
     }
 
     // Transfer the image data into the LibPNG array.
-    for (unsigned long int y = 0; y < selfInfo.height; y++) {
-        for (unsigned long int x = 0; x < selfInfo.width; x++) {
-            auto pixel = getPixel(x, y).value();
-            setGrey_raw(x, y, rowPointers, pixel, nBytesPerPixel);
+    if (pngData.getDepthInBits() >= 8) {
+        for (unsigned long int y = 0; y < selfInfo.height; y++) {
+            for (unsigned long int x = 0; x < selfInfo.width; x++) {
+                auto pixel = getPixel(x, y).value();
+                setGrey_raw(x, y, rowPointers, pixel, nBytesPerPixel);
+            }
+        }
+    } else {
+        for (unsigned long int y = 0; y < selfInfo.height; y++) {
+            for (unsigned long int x = 0; x < selfInfo.width; x++) {
+                auto pixel = getPixel(x, y).value();
+                setGreyRawTiny(x, y, rowPointers, pixel, 8 / pngData.getDepthInBits());
+            }
         }
     }
 
@@ -246,6 +255,7 @@ bool PNG_Grey::setPixel(unsigned long x, unsigned long y, GreyPixel value) {
 GreyPixel
 PNG_Grey::getGrey_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, unsigned int nBytesPerColor) {
     // LibPNG magic.
+
     png_byte *row = PNG_array[y];
     png_byte *ptr = &(row[x * nBytesPerColor]);
 
@@ -265,6 +275,27 @@ void PNG_Grey::setGrey_raw(unsigned long int x, unsigned long int y, png_bytepp 
 
     for (unsigned int i = 0; i < nBytesPerColor; i++)
         ptr[i] = (pixel >> (((nBytesPerColor - 1) - i) * 8)) & (unsigned int) 0xFF;
+}
+
+void PNG_Grey::setGreyRawTiny(unsigned long int x, unsigned long int y, png_bytepp PNG_array, GreyPixel pixel,
+                              unsigned int nColorsInByte) {
+    // LibPNG magic.
+    png_byte *row = PNG_array[y];
+    unsigned int index = x / nColorsInByte;
+    png_byte *ptr = &(row[index]);
+
+    unsigned int loc = x % nColorsInByte;
+    loc = (nColorsInByte - 1) - loc;
+    png_byte result = pixel << (loc * (8U / nColorsInByte));
+    png_byte tmp = ptr[0];
+    for (unsigned int i = loc * (8U / nColorsInByte); i < (loc + 1U) * (8U / nColorsInByte); i++) {
+        png_byte mask = 1U << i;
+        mask = ~mask;
+        tmp = tmp & mask;
+        tmp = tmp | result;
+    }
+
+    ptr[0] = tmp;
 }
 
 unsigned long int PNG_Grey::getIndex(unsigned long x, unsigned long y, unsigned long width) {

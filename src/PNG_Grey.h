@@ -43,6 +43,9 @@ private:
     static void setGrey_raw(unsigned long int x, unsigned long int y, png_bytepp PNG_array, GreyPixel pixel,
                             unsigned int nBytesPerColor);
 
+    static void setGreyRawTiny(unsigned long int x, unsigned long int y, png_bytepp PNG_array, GreyPixel pixel,
+                                  unsigned int nColorsInByte);
+
     // Gets the index for a 1-D grey array for a given x and y.
     static unsigned long int getIndex(unsigned long int x, unsigned long int y, unsigned long width);
 

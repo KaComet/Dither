@@ -142,7 +142,9 @@ PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned int maxValue
 }
 
 PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue) {
-    PNG_Grey resultPNG = PNG_Grey(input.getInfo().width, input.getInfo().height, 8);
+    unsigned int bitDepth = 1;
+    unsigned int onColor = pow(2, bitDepth) - 1;
+    PNG_Grey resultPNG = PNG_Grey(input.getInfo().width, input.getInfo().height, bitDepth);
 
     // Scan through every pixel in the image.
     for (png_uint_32 y = 0; y < resultPNG.getInfo().height; y++) {
@@ -159,7 +161,7 @@ PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue
 
             // If the pixel's value exceeds the threshold, fill it in.
             if (exceedsThreshold(grey, maxValue, map[x % 4][y % 4], 16.0))
-                resultPixel = 255;
+                resultPixel = onColor;
 
             // Save the resultant pixel to the output PNG.
             resultPNG.setPixel(x, y, resultPixel);
