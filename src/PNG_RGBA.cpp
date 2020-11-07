@@ -12,27 +12,15 @@ PNG_RGBA::PNG_RGBA() {
 
 PNG_RGBA::PNG_RGBA(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-                                                 (png_voidp) nullptr/*user_error_ptr*/,
-                                                 nullptr/*user_error_fn*/,
-                                                 nullptr/*user_warning_fn*/);
-    if (!png_ptr)
-        throw std::runtime_error("Internal Error: Could not create PNG object");
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        png_destroy_read_struct(&png_ptr, (png_infopp) nullptr, (png_infopp) nullptr);
-        throw std::runtime_error("Internal Error: Could not create info object");
-    }
-    png_infop end_info = png_create_info_struct(png_ptr);
-    if (!end_info) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) nullptr);
-        throw std::runtime_error("Internal Error: Could not create end info object");
-    }
+    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
 
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        throw std::runtime_error("Exception: jumped");
+    try {
+        infoPair = PNG_Loader::getLibPNGReadStructs();
+    } catch (std::exception &ex) {
+        throw ex;
     }
+    png_structp png_ptr = infoPair.first;
+    png_infop info_ptr = infoPair.second;
 
     // Open stream at file path.
     std::FILE *fp = fopen(filePath.c_str(), "rb");
@@ -49,82 +37,27 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
         throw NotPNG();
     }
 
-    /* Load the image's properties. These will
-     *   be used to identify any transformation
-     *   that need to be applied to the image */
-    png_init_io(png_ptr, fp);
-    png_set_sig_bytes(png_ptr, 0);
-    png_read_info(png_ptr, info_ptr);
-    unsigned int colorDepth = png_get_bit_depth(png_ptr, info_ptr);
-
-    // If the file is greyscale, convert to RGB.
-    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA))
-        png_set_gray_to_rgb(png_ptr);
-
-    // If the image lacks an alpha channel, add an alpha channel.
-    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGB) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY))
-        png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
-
-    // If the file is a palette image, convert to RGBA
-    if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_PALETTE) {
-        png_set_palette_to_rgb(png_ptr);
-        png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
-    }
+    transformToRGBA(png_ptr, info_ptr, fp);
 
     // Load the image's final properties.
-    PNG_Info tempInfo{};
-    tempInfo.width = png_get_image_width(png_ptr, info_ptr);
-    tempInfo.height = png_get_image_height(png_ptr, info_ptr);
-    tempInfo.colorDepth = png_get_bit_depth(png_ptr, info_ptr);
-    tempInfo.numberOfPasses = (unsigned long int) png_set_interlace_handling(png_ptr);
-    png_read_update_info(png_ptr, info_ptr);
-    switch (png_get_color_type(png_ptr, info_ptr)) {
-        case PNG_COLOR_TYPE_GRAY:
-            tempInfo.colorType = PNG_ColorType::grayscale;
-            break;
-        case PNG_COLOR_TYPE_RGB:
-            tempInfo.colorType = PNG_ColorType::RGB_truecolor;
-            break;
-        case PNG_COLOR_TYPE_PALETTE:
-            tempInfo.colorType = PNG_ColorType::indexed;
-            break;
-        case PNG_COLOR_TYPE_GRAY_ALPHA:
-            tempInfo.colorType = PNG_ColorType::grayscale_alpha;
-            break;
-        case PNG_COLOR_TYPE_RGB_ALPHA:
-            tempInfo.colorType = PNG_ColorType::RGBA;
-            break;
-        default:
-            fclose(fp);
-            throw UnsupportedColorMode();
+    PNG_Info finalInfo{};
+    try {
+        finalInfo = PNG_Loader::getPNGInfo(png_ptr, info_ptr);
+    } catch (UnsupportedColorMode &e) {
+        fclose(fp);
+        throw e;
     }
 
-    // Prepare a 2-D array for LibPNG to load the image data into.
-    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * tempInfo.height);
-    for (unsigned long int y = 0; y < tempInfo.height; y++)
-        rowPointers[y] = (png_byte *) malloc(png_get_rowbytes(png_ptr, info_ptr));
-
-    // Load image data.
-    png_read_image(png_ptr, rowPointers);
+    // Prepare a 2-D array for LibPNG and load the image data into it.
+    png_bytepp rowPointers = PNG_Loader::loadPNGIntoRowPointers(finalInfo, png_ptr, info_ptr);
     fclose(fp);
-    selfInfo = tempInfo;
+    selfInfo = finalInfo;
 
-    unsigned int nBytesPerPixel;
-    if (colorDepth <= 8)
-        nBytesPerPixel = 1;
-    else {
-        nBytesPerPixel = (colorDepth / 8);
-        if ((colorDepth % 8))
-            nBytesPerPixel += 1;
-    }
-
-    selfInfo.colorDepth = colorDepth;
+    unsigned int nBytesPerPixel = PNG_Loader::getBytesPerPixel(selfInfo);
 
     // Load transfer data from 2-D array to a 1-D array.
     pngData = PNG_Data_Array<RGBA_Pixel>((unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
-                             colorDepth);
+                             selfInfo.colorDepth);
     for (unsigned int y = 0; y < selfInfo.height; y++) {
         for (unsigned int x = 0; x < selfInfo.width; x++) {
             auto a = getRGBA_raw(x, y, rowPointers, nBytesPerPixel);
@@ -132,29 +65,25 @@ PNG_RGBA::PNG_RGBA(const std::string &filePath) {
         }
     }
 
-    // Free 2-D array.
-    for (unsigned long int y = 0; y < selfInfo.height; y++)
-        free(rowPointers[y]);
-    free(rowPointers);
+    // Free the memory used to load the PNG.
+    PNG_Loader::FreeRowPointers(rowPointers, selfInfo);
 }
 
 PNG_Info PNG_RGBA::getInfo() const noexcept {
     return selfInfo;
 }
 
-void PNG_RGBA::write_png_file(const std::string &file_path) const {
+void PNG_RGBA::write_png_file(const std::string &file_path) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-    if (!png_ptr) {
-        throw std::runtime_error("Internal Error: Could not create PNG object");
+    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
+    try {
+        infoPair = PNG_Loader::getLibPNGWriteStructs();
+    } catch (std::exception &ex) {
+        throw ex;
     }
-    auto info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        throw std::runtime_error("Internal Error: Could not create info object");
-    }
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        throw std::runtime_error("Exception: jumped");
-    }
+    png_structp png_ptr = infoPair.first;
+    png_infop info_ptr = infoPair.second;
+
     // Create stream at file path.
     FILE *fp = fopen(file_path.c_str(), "wb");
 
@@ -176,22 +105,13 @@ void PNG_RGBA::write_png_file(const std::string &file_path) const {
     png_write_info(png_ptr, info_ptr);
 
     if (setjmp(png_jmpbuf(png_ptr))) {
+        fclose(fp);
         throw std::runtime_error("Exception: jumped");
     }
 
     // Prepare a 2-D array for LibPNG to load the image data from.
-    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * selfInfo.height);
-    for (unsigned long int y = 0; y < selfInfo.height; y++)
-        rowPointers[y] = (png_byte *) malloc(png_get_rowbytes(png_ptr, info_ptr));
-
-    unsigned int nBytesPerPixel;
-    if (pngData.getDepthInBits() <= 8)
-        nBytesPerPixel = 1;
-    else {
-        nBytesPerPixel = (pngData.getDepthInBits() / 8);
-        if ((pngData.getDepthInBits() % 8))
-            nBytesPerPixel += 1;
-    }
+    png_bytepp rowPointers = PNG_Loader::makeRowPointers(selfInfo, png_ptr, info_ptr);
+    unsigned int nBytesPerPixel = PNG_Loader::getBytesPerPixel(selfInfo);
 
     // Transfer the image data into the LibPNG array.
     for (unsigned long int y = 0; y < selfInfo.height; y++) {
@@ -203,8 +123,10 @@ void PNG_RGBA::write_png_file(const std::string &file_path) const {
 
     // Write image to disk.
     png_write_image(png_ptr, rowPointers);
-    if (setjmp(png_jmpbuf(png_ptr)))
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        fclose(fp);
         throw std::runtime_error("Could not create image");
+    }
     png_write_end(png_ptr, nullptr);
 
     // Close output stream.
@@ -274,5 +196,30 @@ void PNG_RGBA::setRGBA_raw(unsigned long int x, unsigned long int y, png_bytepp 
 
 unsigned long int PNG_RGBA::getIndex(unsigned long x, unsigned long y, unsigned long width) {
     return x + (y * width);
+}
+
+void PNG_RGBA::transformToRGBA(png_structp pngStructp, png_infop infoPtr, std::FILE *fp) {
+    /* Load the image's properties. These will
+     *   be used to identify any transformation
+     *   that need to be applied to the image */
+    png_init_io(pngStructp, fp);
+    png_set_sig_bytes(pngStructp, 0);
+    png_read_info(pngStructp, infoPtr);
+
+    // If the file is greyscale, convert to RGB.
+    if ((png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_GRAY) ||
+        (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_GRAY_ALPHA))
+        png_set_gray_to_rgb(pngStructp);
+
+    // If the image lacks an alpha channel, add an alpha channel.
+    if ((png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_RGB) ||
+        (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_GRAY))
+        png_set_add_alpha(pngStructp, 0xFF, PNG_FILLER_AFTER);
+
+    // If the file is a palette image, convert to RGBA
+    if (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_PALETTE) {
+        png_set_palette_to_rgb(pngStructp);
+        png_set_add_alpha(pngStructp, 0xFF, PNG_FILLER_AFTER);
+    }
 }
 

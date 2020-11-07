@@ -85,7 +85,6 @@ void PNG_RGB::write_png_file(const std::string &file_path) {
     png_structp png_ptr = infoPair.first;
     png_infop info_ptr = infoPair.second;
 
-
     // Create stream at file path.
     FILE *fp = fopen(file_path.c_str(), "wb");
 
@@ -113,7 +112,6 @@ void PNG_RGB::write_png_file(const std::string &file_path) {
 
     // Prepare a 2-D array for LibPNG to load the image data from.
     png_bytepp rowPointers = PNG_Loader::makeRowPointers(selfInfo, png_ptr, info_ptr);
-
     unsigned int nBytesPerPixel = PNG_Loader::getBytesPerPixel(selfInfo);
 
     // Transfer the image data into the LibPNG array.
@@ -126,8 +124,10 @@ void PNG_RGB::write_png_file(const std::string &file_path) {
 
     // Write image to disk.
     png_write_image(png_ptr, rowPointers);
-    if (setjmp(png_jmpbuf(png_ptr)))
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        fclose(fp);
         throw std::runtime_error("Could not create image");
+    }
     png_write_end(png_ptr, nullptr);
 
     // Close output stream.
@@ -200,7 +200,6 @@ void PNG_RGB::transformToRGB(png_structp pngStructp, png_infop infoPtr, std::FIL
     png_init_io(pngStructp, fp);
     png_set_sig_bytes(pngStructp, 0);
     png_read_info(pngStructp, infoPtr);
-    unsigned int colorDepth = png_get_bit_depth(pngStructp, infoPtr);
 
     // If the file is greyscale, convert to RGB.
     if (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_GRAY) {

@@ -136,8 +136,10 @@ void PNG_Grey::write_png_file(const std::string &file_path) {
 
     // Write image to disk.
     png_write_image(png_ptr, rowPointers);
-    if (setjmp(png_jmpbuf(png_ptr)))
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        fclose(fp);
         throw std::runtime_error("Could not create image");
+    }
     png_write_end(png_ptr, nullptr);
 
     // Close output stream.

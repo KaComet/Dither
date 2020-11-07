@@ -5,6 +5,7 @@
 #include <png.h>
 #include <cmath>
 #include "PNG_Loader.h"
+#include "PNG_RGB.h"
 #include "PNG_RGBA.h"
 #include "PNG_Grey.h"
 #include "PNG_structs.h"
@@ -14,9 +15,9 @@ const double bayer4X4[4][4] = {{0,  8,  2,  10},
                                {3,  11, 1,  9},
                                {15, 7,  13, 5}};
 
-PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned int maxValue);
+PNG_RGB bayerRGB(PNG_RGB &input, const double map[][4], unsigned int maxValue);
 
-PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue);
+PNG_Grey bayerGrey(PNG_RGB &input, const double map[][4], unsigned int maxValue);
 
 bool exceedsThreshold(double value, double maxValue, double threshold, double thresholdDivisor);
 
@@ -60,9 +61,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    PNG_RGBA png;
+    PNG_RGB png;
     try {
-        png = PNG_RGBA(inputFilePath);
+        png = PNG_RGB(inputFilePath);
     } catch (BadPath &e) {
         std::cout << "Could not load file at source. Aborting." << std::endl;
         exit(1);
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
 
     // Perform Bayer Dithering on the image using the color mode specified.
     if (using3Bit) {
-        png = bayerRGBA(png, bayer4X4, pow(2, png.getInfo().colorDepth) - 1);
+        png = bayerRGB(png, bayer4X4, pow(2, png.getInfo().colorDepth) - 1);
 
         // Write the resultant PNG.
         try {
@@ -109,17 +110,17 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned int maxValue) {
-    PNG_RGBA resultPNG = input;
+PNG_RGB bayerRGB(PNG_RGB &input, const double map[][4], unsigned int maxValue) {
+    PNG_RGB resultPNG = input;
 
     // Scan through every pixel in the image.
     for (png_uint_32 y = 0; y < resultPNG.getInfo().height; y++) {
         for (png_uint_32 x = 0; x < resultPNG.getInfo().width; x++) {
             // Get the pixel at the calculated location.
-            RGBA_Pixel pixel = input.getPixel(x, y).value();
+            RGB_Pixel pixel = input.getPixel(x, y).value();
 
             // The default value of the result is a black pixel.
-            auto resultPixel = RGBA_Pixel{0x00, 0x00, 0x00, maxValue};
+            auto resultPixel = RGB_Pixel{0x00, 0x00, 0x00};
 
             // If the color red exceeds the threshold, fill it in.
             if (exceedsThreshold(pixel.red, maxValue, map[x % 4][y % 4], 16.0))
@@ -141,7 +142,7 @@ PNG_RGBA bayerRGBA(PNG_RGBA &input, const double map[][4], unsigned int maxValue
     return resultPNG;
 }
 
-PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue) {
+PNG_Grey bayerGrey(PNG_RGB &input, const double map[][4], unsigned int maxValue) {
     unsigned int bitDepth = 1;
     unsigned int onColor = pow(2, bitDepth) - 1;
     PNG_Grey resultPNG = PNG_Grey(input.getInfo().width, input.getInfo().height, bitDepth);
@@ -150,7 +151,7 @@ PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue
     for (png_uint_32 y = 0; y < resultPNG.getInfo().height; y++) {
         for (png_uint_32 x = 0; x < resultPNG.getInfo().width; x++) {
             // Get the pixel at the calculated location.
-            RGBA_Pixel pixel = input.getPixel(x, y).value();
+            RGB_Pixel pixel = input.getPixel(x, y).value();
 
             // The default value of the result is a black pixel.
             GreyPixel resultPixel = 0;
