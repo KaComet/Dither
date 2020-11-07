@@ -17,6 +17,8 @@ public:
 
     static PNG_Info getPNGInfo(png_structp pngStructp, png_infop infoPtr);
 
+    static png_bytepp makeRowPointers(PNG_Info &info, png_structp pngStructp, png_infop infoPtr);
+
     static png_bytepp loadPNGIntoRowPointers(PNG_Info &info, png_structp pngStructp, png_infop infoPtr);
 
     static void FreeRowPointers(png_bytepp rowPointers, PNG_Info &info);

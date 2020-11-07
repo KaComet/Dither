@@ -11,6 +11,7 @@ PNG_RGB::PNG_RGB() {
 }
 
 PNG_RGB::PNG_RGB(const std::string &filePath) {
+    // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
 
     try {
@@ -47,7 +48,7 @@ PNG_RGB::PNG_RGB(const std::string &filePath) {
         throw e;
     }
 
-    // Prepare a 2-D array for LibPNG to load the image data into.
+    // Prepare a 2-D array for LibPNG and load the image data into it.
     png_bytepp rowPointers = PNG_Loader::loadPNGIntoRowPointers(finalInfo, png_ptr, info_ptr);
     fclose(fp);
     selfInfo = finalInfo;
@@ -74,6 +75,7 @@ PNG_Info PNG_RGB::getInfo() const noexcept {
 }
 
 void PNG_RGB::write_png_file(const std::string &file_path) {
+    // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
     std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
     try {
         infoPair = PNG_Loader::getLibPNGWriteStructs();
@@ -110,7 +112,7 @@ void PNG_RGB::write_png_file(const std::string &file_path) {
     }
 
     // Prepare a 2-D array for LibPNG to load the image data from.
-    png_bytepp rowPointers = PNG_Loader::loadPNGIntoRowPointers(selfInfo, png_ptr, info_ptr);
+    png_bytepp rowPointers = PNG_Loader::makeRowPointers(selfInfo, png_ptr, info_ptr);
 
     unsigned int nBytesPerPixel = PNG_Loader::getBytesPerPixel(selfInfo);
 

@@ -126,11 +126,18 @@ PNG_Info PNG_Loader::getPNGInfo(png_structp pngStructp, png_infop infoPtr) {
     return result;
 }
 
-png_bytepp PNG_Loader::loadPNGIntoRowPointers(PNG_Info &info, png_structp pngStructp, png_infop infoPtr) {
+png_bytepp PNG_Loader::makeRowPointers(PNG_Info &info, png_structp pngStructp, png_infop infoPtr) {
     // Prepare a 2-D array for LibPNG to load the image data into.
-    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * info.height);
+    png_bytepp rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * info.height);
     for (unsigned long int y = 0; y < info.height; y++)
         rowPointers[y] = (png_byte *) malloc(png_get_rowbytes(pngStructp, infoPtr));
+
+    return rowPointers;
+}
+
+png_bytepp PNG_Loader::loadPNGIntoRowPointers(PNG_Info &info, png_structp pngStructp, png_infop infoPtr) {
+    // Prepare a 2-D array for LibPNG to load the image data into.
+    png_bytepp rowPointers = makeRowPointers(info, pngStructp, infoPtr);
 
     // Load image data.
     png_read_image(pngStructp, rowPointers);
@@ -201,4 +208,5 @@ std::pair<png_structp, png_infop> PNG_Loader::getLibPNGWriteStructs() {
 
     return std::pair<png_structp, png_infop>(png_ptr, info_ptr);
 }
+
 

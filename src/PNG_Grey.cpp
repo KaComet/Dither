@@ -21,27 +21,15 @@ PNG_Grey::PNG_Grey(unsigned long int width, unsigned long int height, unsigned i
 
 PNG_Grey::PNG_Grey(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-                                                 (png_voidp) nullptr/*user_error_ptr*/,
-                                                 nullptr/*user_error_fn*/,
-                                                 nullptr/*user_warning_fn*/);
-    if (!png_ptr)
-        throw std::runtime_error("Internal Error: Could not create PNG object");
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        png_destroy_read_struct(&png_ptr, (png_infopp) nullptr, (png_infopp) nullptr);
-        throw std::runtime_error("Internal Error: Could not create info object");
-    }
-    png_infop end_info = png_create_info_struct(png_ptr);
-    if (!end_info) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) nullptr);
-        throw std::runtime_error("Internal Error: Could not create end info object");
-    }
+    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
 
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        throw std::runtime_error("Exception: jumped");
+    try {
+        infoPair = PNG_Loader::getLibPNGReadStructs();
+    } catch (std::exception &ex) {
+        throw ex;
     }
+    png_structp png_ptr = infoPair.first;
+    png_infop info_ptr = infoPair.second;
 
     // Open stream at file path.
     std::FILE *fp = fopen(filePath.c_str(), "rb");
@@ -58,84 +46,28 @@ PNG_Grey::PNG_Grey(const std::string &filePath) {
         throw NotPNG();
     }
 
-    /* Load the image's properties. These will
-     *   be used to identify any transformation
-     *   that need to be applied to the image */
-    png_init_io(png_ptr, fp);
-    png_set_sig_bytes(png_ptr, 0);
-    png_read_info(png_ptr, info_ptr);
-    unsigned int colorDepth = png_get_bit_depth(png_ptr, info_ptr);
-
-    // If the file is a palette image, convert to RGB
-    if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_PALETTE) {
-        png_set_palette_to_rgb(png_ptr);
-        png_set_strip_alpha(png_ptr);
-    }
-
-    // If the image has an alpha channel, remove it.
-    if ((png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGBA) ||
-        (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_GRAY_ALPHA)) {
-        png_set_strip_alpha(png_ptr);
-    }
-
-    // If the file is RGB, convert to greyscale.
-    if ((png_get_color_type(png_ptr, info_ptr) != PNG_COLOR_TYPE_GRAY)) {
-        png_set_rgb_to_gray(png_ptr, 1, -1, -1);
-    }
+    transformToGrey(png_ptr, info_ptr, fp);
 
     // Load the image's final properties.
-    PNG_Info tempInfo{};
-    tempInfo.width = png_get_image_width(png_ptr, info_ptr);
-    tempInfo.height = png_get_image_height(png_ptr, info_ptr);
-    tempInfo.colorDepth = png_get_bit_depth(png_ptr, info_ptr);
-    tempInfo.numberOfPasses = (unsigned long int) png_set_interlace_handling(png_ptr);
-    png_read_update_info(png_ptr, info_ptr);
-    switch (png_get_color_type(png_ptr, info_ptr)) {
-        case PNG_COLOR_TYPE_GRAY:
-            tempInfo.colorType = PNG_ColorType::grayscale;
-            break;
-        case PNG_COLOR_TYPE_RGB:
-            tempInfo.colorType = PNG_ColorType::RGB_truecolor;
-            break;
-        case PNG_COLOR_TYPE_PALETTE:
-            tempInfo.colorType = PNG_ColorType::indexed;
-            break;
-        case PNG_COLOR_TYPE_GRAY_ALPHA:
-            tempInfo.colorType = PNG_ColorType::grayscale_alpha;
-            break;
-        case PNG_COLOR_TYPE_RGB_ALPHA:
-            tempInfo.colorType = PNG_ColorType::RGBA;
-            break;
-        default:
-            fclose(fp);
-            throw UnsupportedColorMode();
+    PNG_Info finalInfo{};
+    try {
+        finalInfo = PNG_Loader::getPNGInfo(png_ptr, info_ptr);
+    } catch (UnsupportedColorMode &e) {
+        fclose(fp);
+        throw e;
     }
 
-    // Prepare a 2-D array for LibPNG to load the image data into.
-    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * tempInfo.height);
-    for (unsigned long int y = 0; y < tempInfo.height; y++)
-        rowPointers[y] = (png_byte *) malloc(png_get_rowbytes(png_ptr, info_ptr));
-
-    // Load image data.
-    png_read_image(png_ptr, rowPointers);
+    // Prepare a 2-D array for LibPNG and load the image data into it.
+    png_bytepp rowPointers = PNG_Loader::loadPNGIntoRowPointers(finalInfo, png_ptr, info_ptr);
     fclose(fp);
-    selfInfo = tempInfo;
+    selfInfo = finalInfo;
 
-    unsigned int nBytesPerPixel;
-    if (colorDepth <= 8)
-        nBytesPerPixel = 1;
-    else {
-        nBytesPerPixel = (colorDepth / 8);
-        if ((colorDepth % 8))
-            nBytesPerPixel += 1;
-    }
-
-    selfInfo.colorDepth = colorDepth;
+    unsigned int nBytesPerPixel = PNG_Loader::getBytesPerPixel(selfInfo);
 
     // Load transfer data from 2-D array to a 1-D array.
     pngData = PNG_Data_Array<GreyPixel>(
             (unsigned long long int) selfInfo.height * (unsigned long long int) selfInfo.width,
-            colorDepth);
+            selfInfo.colorDepth);
     for (unsigned int y = 0; y < selfInfo.height; y++) {
         for (unsigned int x = 0; x < selfInfo.width; x++) {
             auto a = getGrey_raw(x, y, rowPointers, nBytesPerPixel);
@@ -143,29 +75,25 @@ PNG_Grey::PNG_Grey(const std::string &filePath) {
         }
     }
 
-    // Free 2-D array.
-    for (unsigned long int y = 0; y < selfInfo.height; y++)
-        free(rowPointers[y]);
-    free(rowPointers);
+    // Free the memory used to load the PNG.
+    PNG_Loader::FreeRowPointers(rowPointers, selfInfo);
 }
 
 PNG_Info PNG_Grey::getInfo() const noexcept {
     return selfInfo;
 }
 
-void PNG_Grey::write_png_file(const std::string &file_path) const {
+void PNG_Grey::write_png_file(const std::string &file_path) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    auto png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-    if (!png_ptr) {
-        throw std::runtime_error("Internal Error: Could not create PNG object");
+    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
+    try {
+        infoPair = PNG_Loader::getLibPNGWriteStructs();
+    } catch (std::exception &ex) {
+        throw ex;
     }
-    auto info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        throw std::runtime_error("Internal Error: Could not create info object");
-    }
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        throw std::runtime_error("Exception: jumped");
-    }
+    png_structp png_ptr = infoPair.first;
+    png_infop info_ptr = infoPair.second;
+
     // Create stream at file path.
     FILE *fp = fopen(file_path.c_str(), "wb");
 
@@ -191,33 +119,18 @@ void PNG_Grey::write_png_file(const std::string &file_path) const {
     }
 
     // Prepare a 2-D array for LibPNG to load the image data from.
-    auto rowPointers = (png_bytep *) malloc(sizeof(png_bytep) * selfInfo.height);
-    for (unsigned long int y = 0; y < selfInfo.height; y++)
-        rowPointers[y] = (png_byte *) malloc(png_get_rowbytes(png_ptr, info_ptr));
+    png_bytepp rowPointers = PNG_Loader::makeRowPointers(selfInfo, png_ptr, info_ptr);
 
-    unsigned int nBytesPerPixel;
-    if (pngData.getDepthInBits() <= 8)
-        nBytesPerPixel = 1;
-    else {
-        nBytesPerPixel = (pngData.getDepthInBits() / 8);
-        if ((pngData.getDepthInBits() % 8))
-            nBytesPerPixel += 1;
-    }
+    unsigned int nBytesPerPixel = PNG_Loader::getBytesPerPixel(selfInfo);
 
     // Transfer the image data into the LibPNG array.
-    if (pngData.getDepthInBits() >= 8) {
-        for (unsigned long int y = 0; y < selfInfo.height; y++) {
-            for (unsigned long int x = 0; x < selfInfo.width; x++) {
-                auto pixel = getPixel(x, y).value();
+    for (unsigned long int y = 0; y < selfInfo.height; y++) {
+        for (unsigned long int x = 0; x < selfInfo.width; x++) {
+            auto pixel = getPixel(x, y).value();
+            if (pngData.getDepthInBits() >= 8)
                 setGrey_raw(x, y, rowPointers, pixel, nBytesPerPixel);
-            }
-        }
-    } else {
-        for (unsigned long int y = 0; y < selfInfo.height; y++) {
-            for (unsigned long int x = 0; x < selfInfo.width; x++) {
-                auto pixel = getPixel(x, y).value();
+            else
                 setGreyRawTiny(x, y, rowPointers, pixel, 8 / pngData.getDepthInBits());
-            }
         }
     }
 
@@ -298,5 +211,32 @@ void PNG_Grey::setGreyRawTiny(unsigned long int x, unsigned long int y, png_byte
 
 unsigned long int PNG_Grey::getIndex(unsigned long x, unsigned long y, unsigned long width) {
     return x + (y * width);
+}
+
+void PNG_Grey::transformToGrey(png_structp pngStructp, png_infop infoPtr, std::FILE *fp) {
+    /* Load the image's properties. These will
+     *   be used to identify any transformation
+     *   that need to be applied to the image */
+    png_init_io(pngStructp, fp);
+    png_set_sig_bytes(pngStructp, 0);
+    png_read_info(pngStructp, infoPtr);
+    unsigned int colorDepth = png_get_bit_depth(pngStructp, infoPtr);
+
+    // If the file is a palette image, convert to RGB
+    if (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_PALETTE) {
+        png_set_palette_to_rgb(pngStructp);
+        png_set_strip_alpha(pngStructp);
+    }
+
+    // If the image has an alpha channel, remove it.
+    if ((png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_RGBA) ||
+        (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_GRAY_ALPHA)) {
+        png_set_strip_alpha(pngStructp);
+    }
+
+    // If the file is RGB, convert to greyscale.
+    if ((png_get_color_type(pngStructp, infoPtr) != PNG_COLOR_TYPE_GRAY)) {
+        png_set_rgb_to_gray(pngStructp, 1, -1, -1);
+    }
 }
 
