@@ -30,7 +30,7 @@ public:
     [[nodiscard]] PNG_Info getInfo() const noexcept;
 
     // Writes the PNG file to the disk at the supplied file path.
-    void write_png_file(const std::string &file_path) const;
+    void write_png_file(const std::string &file_path);
 
 private:
     /* Returns the RGB pixel value at an x and y for a given LibPNG png_bytepp array. Used for
@@ -44,6 +44,8 @@ private:
 
     // Gets the index for a 1-D RGB array for a given x and y.
     static unsigned long int getIndex(unsigned long int x, unsigned long int y, unsigned long width);
+
+    static void transformToRGB(png_structp pngStructp, png_infop infoPtr, std::FILE *fp);
 
     PNG_Info selfInfo{};  // Image properties.
     PNG_Data_Array<RGB_Pixel> pngData = PNG_Data_Array<RGB_Pixel>(1, 0); // 1-D RGB array, the image's RGB values.

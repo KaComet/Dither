@@ -157,7 +157,7 @@ PNG_Grey bayerGrey(PNG_RGBA &input, const double map[][4], unsigned int maxValue
 
             // If using 3Bit color mode.
             // Convert the pixel to greyscale.
-            unsigned int grey = pixelToGrey(pixel.red, pixel.blue, pixel.green);
+            GreyPixel grey = pixelToGrey(pixel.red, pixel.blue, pixel.green);
 
             // If the pixel's value exceeds the threshold, fill it in.
             if (exceedsThreshold(grey, maxValue, map[x % 4][y % 4], 16.0))
