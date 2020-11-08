@@ -13,7 +13,7 @@ enum class PNG_ColorType {
 
 struct PNG_Info {
     PNG_ColorType colorType;
-    unsigned char colorDepth;
+    unsigned int colorDepth;
     unsigned long int width, height, numberOfPasses;
 
 };

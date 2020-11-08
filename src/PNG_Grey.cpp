@@ -21,7 +21,7 @@ PNG_Grey::PNG_Grey(unsigned long int width, unsigned long int height, unsigned i
 
 PNG_Grey::PNG_Grey(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
+    std::pair<png_structp, png_infop> infoPair;
 
     try {
         infoPair = PNG_Loader::getLibPNGReadStructs();
@@ -85,7 +85,7 @@ PNG_Info PNG_Grey::getInfo() const noexcept {
 
 void PNG_Grey::write_png_file(const std::string &file_path) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
+    std::pair<png_structp, png_infop> infoPair;
     try {
         infoPair = PNG_Loader::getLibPNGWriteStructs();
     } catch (std::exception &ex) {
@@ -222,7 +222,6 @@ void PNG_Grey::transformToGrey(png_structp pngStructp, png_infop infoPtr, std::F
     png_init_io(pngStructp, fp);
     png_set_sig_bytes(pngStructp, 0);
     png_read_info(pngStructp, infoPtr);
-    unsigned int colorDepth = png_get_bit_depth(pngStructp, infoPtr);
 
     // If the file is a palette image, convert to RGB
     if (png_get_color_type(pngStructp, infoPtr) == PNG_COLOR_TYPE_PALETTE) {

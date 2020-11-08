@@ -54,12 +54,6 @@ int main(int argc, char *argv[]) {
         std::cout << "File color mode not supported. Aborting." << std::endl;
         exit(1);
     }
-    if (((fileInfo.colorType != PNG_ColorType::RGBA) && (fileInfo.colorType != PNG_ColorType::RGB_truecolor) &&
-         (fileInfo.colorType != PNG_ColorType::grayscale) && (fileInfo.colorType != PNG_ColorType::grayscale_alpha) &&
-         (fileInfo.colorDepth != 8) & (fileInfo.colorDepth != 16))) {
-        std::cout << "File is not compatible.\n";
-        return 1;
-    }
 
     PNG_RGB png;
     try {

@@ -12,7 +12,7 @@ PNG_RGB::PNG_RGB() {
 
 PNG_RGB::PNG_RGB(const std::string &filePath) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
+    std::pair<png_structp, png_infop> infoPair;
 
     try {
         infoPair = PNG_Loader::getLibPNGReadStructs();
@@ -76,7 +76,7 @@ PNG_Info PNG_RGB::getInfo() const noexcept {
 
 void PNG_RGB::write_png_file(const std::string &file_path) {
     // Setup LibPNG's PNG and INFO structs. If a problem is encountered, throw.
-    std::pair<png_structp, png_infop> infoPair = std::pair<png_structp, png_infop>(nullptr, nullptr);
+    std::pair<png_structp, png_infop> infoPair;
     try {
         infoPair = PNG_Loader::getLibPNGWriteStructs();
     } catch (std::exception &ex) {
